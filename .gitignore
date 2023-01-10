@@ -1,0 +1,6 @@
+.idea/**
+__pycache__/**
+logs/**
+*.csv
+*.xlsx
+psw.yaml

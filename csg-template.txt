@@ -1,0 +1,83 @@
+interface {{ config["port"] }}
+ !
+ service instance {{ config["vlans"][0] }} ethernet
+  description ABIS
+  encapsulation dot1q {{ config["vlans"][0] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][0] }}
+ !
+ service instance {{ config["vlans"][1] }} ethernet
+  description IUB
+  encapsulation dot1q {{ config["vlans"][1] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][1] }}
+ !
+ service instance {{ config["vlans"][2] }} ethernet
+  description OAM
+  encapsulation dot1q {{ config["vlans"][2] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][2] }}
+ !
+ service instance {{ config["vlans"][3] }} ethernet
+  description S1C
+  encapsulation dot1q {{ config["vlans"][3] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][3] }}
+ !
+ service instance {{ config["vlans"][4] }} ethernet
+  description S1U
+  encapsulation dot1q {{ config["vlans"][4] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][4] }}
+ !
+ service instance {{ config["vlans"][5] }} ethernet
+  description X2
+  encapsulation dot1q {{ config["vlans"][5] }}
+  rewrite ingress tag pop 1 symmetric
+  bridge-domain {{ config["vlans"][5] }}
+!
+interface Vlan{{ config["vlans"][0] }}
+ description ABIS BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][0] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+!
+interface Vlan{{ config["vlans"][1] }}
+ description IUB BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][1] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+!
+interface Vlan{{ config["vlans"][2] }}
+ description OAM BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][2] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+ {% for i in config["helpers"] -%}
+ ip helper-address {{ i }}
+ {% endfor %}
+!
+interface Vlan{{ config["vlans"][3] }}
+ description S1C BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][3] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+!
+interface Vlan{{ config["vlans"][4] }}
+ description S1U BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][4] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+!
+interface Vlan{{ config["vlans"][5] }}
+ description X2 BS:
+ vrf forwarding MA
+ ip address {{ config["ip"][5] }} {{ config["mask"] }}
+ no logging event link-status
+ no shutdown
+!
