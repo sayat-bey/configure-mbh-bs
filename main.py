@@ -1,6 +1,5 @@
 import os
 import yaml
-from getpass import getpass
 from sys import argv
 from datetime import datetime
 from pathlib import Path
