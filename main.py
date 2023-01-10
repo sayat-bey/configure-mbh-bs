@@ -41,7 +41,6 @@ conf_dic = {
     }
 
 configuration_log = []
-ios_dict = {"ios": "cisco_ios"}
 
 
 #######################################################################################
@@ -97,9 +96,9 @@ def set_region(conf_dic, probable_region):
 def set_ios(conf_dic, device):
     
     if "csg" in device:
-        ios_type = input("Enter ios (ios, xr, xe) [ios]: ") or "ios"
+        ios_type = input("Enter ios (ios,xr,xe) [ios]: ") or "ios"
     elif "pagg" in device:  
-        ios_type = input("Enter ios (ios, xr, xe) [xr]: ") or "xr"
+        ios_type = input("Enter ios (ios,xr,xe) [xr]: ") or "xr"
         
     if ios_type == "ios":
         conf_dic["ios_type"] = "cisco_ios"
