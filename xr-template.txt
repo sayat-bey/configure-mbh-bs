@@ -1,0 +1,35 @@
+interface {{ config["port"] }}.{{ config["vlans"][0] }}
+ description .... ABIS 
+ vrf MA
+ ipv4 address {{ config["ip"][0] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][0] }}
+!
+interface {{ config["port"] }}.{{ config["vlans"][1] }}
+ description .... IUB 
+ vrf MA
+ ipv4 address {{ config["ip"][1] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][1] }}
+!
+interface {{ config["port"] }}.{{ config["vlans"][2] }}
+ description .... OAM 
+ vrf MA
+ ipv4 address {{ config["ip"][2] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][2] }}
+!
+interface {{ config["port"] }}.{{ config["vlans"][3] }}
+ description .... S1C 
+ vrf MA
+ ipv4 address {{ config["ip"][3] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][3] }}
+!
+interface {{ config["port"] }}.{{ config["vlans"][4] }}
+ description .... S1U 
+ vrf MA
+ ipv4 address {{ config["ip"][4] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][4] }}
+!
+interface {{ config["port"] }}.{{ config["vlans"][5] }}
+ description .... X2 
+ vrf MA
+ ipv4 address {{ config["ip"][5] }} {{ config["mask"] }}
+ encapsulation dot1q {{ config["vlans"][5] }}
