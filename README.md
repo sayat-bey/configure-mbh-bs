@@ -9,5 +9,5 @@ create psw.yaml in followin format:
 v1.1 (11.01.2023)
  - IOS
 
-v2 (coming soon)
+v2 (11.01.2023)
  - IOS XR
