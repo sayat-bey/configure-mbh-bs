@@ -65,28 +65,28 @@ def get_user_pw():
     return user_psw[0], user_psw[1]
 
 
-def get_info():
-    device = input("Enter device (ip or hostname): ")
-    region = device.split("-")[0]
+def connect(usr, psw, conf_dic, device):
+    ssh_conn = ConnectHandler(device_type=conf_dic["ios_type"], ip=device, username=usr, password=psw)
+    show_inf_desc = ssh_conn.send_command("show interfaces description")
+
+    return ssh_conn, show_inf_desc
+
+
+def define_hostname(ssh_conn, device):
+    if len(device.split(".")) == 4:    # device in ip 
+        prmt = ssh_conn.find_prompt()
+        hostname = prmt.split("#")[0]
+        print(f"hostname is: {hostname}")
+    else:
+        hostname = device
+
+    region = hostname.split("-")[0]
     if "." in region:
         region_final = region.split(".")[1]
     else:
         region_final = region    
 
-    return region_final, device
-
-
-def set_region(conf_dic, probable_region, helper):
-    while True:
-        region = input(f"Enter region for IP RELAY [{probable_region}]: ") or probable_region
-        if helper.get(region):
-            break
-        else:
-            print("wrong region. enter one of:\n\
-                kyzy, alma, shim, tara, seme, ural, akta, kost\n\
-                asta, koks, petr, pavl, ustk, kara, akto, atyr")
-
-    conf_dic["helpers"] = helper[region]
+    return region_final, hostname
 
 
 def set_ios(conf_dic, device):
@@ -95,7 +95,9 @@ def set_ios(conf_dic, device):
             ios_type = input("Enter ios type (ios,xr,xe) [ios]: ") or "ios"
         elif "pagg" in device:  
             ios_type = input("Enter ios type (ios,xr,xe) [xr]: ") or "xr"
-        
+        else:
+            print(f"# ERROR # hostname error: {device}")
+
         if ios_type == "ios":
             conf_dic["ios_type"] = "cisco_ios"
             break
@@ -109,11 +111,17 @@ def set_ios(conf_dic, device):
             print(f"#ERROR# Wrong ios type: {ios_type}. It must be one of ios,xr,xe")
 
 
-def connect(usr, psw, conf_dic, device):
-    ssh_conn = ConnectHandler(device_type=conf_dic["ios_type"], ip=device, username=usr, password=psw)
-    show_inf_desc = ssh_conn.send_command("show interfaces description")
+def set_region(conf_dic, probable_region, helper):
+    while True:
+        region = input(f"Enter region for IP RELAY [{probable_region}]: ") or probable_region
+        if helper.get(region):
+            break
+        else:
+            print("wrong region. enter one of:\n\
+                kyzy, alma, shim, tara, seme, ural, akta, kost\n\
+                asta, koks, petr, pavl, ustk, kara, akto, atyr")
 
-    return ssh_conn, show_inf_desc
+    conf_dic["helpers"] = helper[region]
 
 
 def define_port_vlan(show_inf_desc, conf_dic):
@@ -210,7 +218,6 @@ def configure(ssh_conn, commands, configuration_log, cfg):
     if cfg:
         if len(commands) > 0:
             configuration_log.append(ssh_conn.send_config_set(commands))
-
             if conf_dic["ios_type"] == "cisco_ios":
                 try:
                     configuration_log.append(ssh_conn.save_config())
@@ -231,25 +238,11 @@ def configure(ssh_conn, commands, configuration_log, cfg):
             print("########################################\n"
                   "candidate configuration:\n"
                   "########################################")
-
             for line in commands:
                 print(line)
 
 
-def check_commit(configuration_log, commands, cfg):
-    if cfg:
-        for i in configuration_log:
-            if "%" in i:
-                print("########################################\n"
-                    "ERROR. CFG-COMMIT")
-
-        for j in commands:
-            if "!" not in j and "" != j and "no shutdown" not in j:
-                if j not in "".join(configuration_log):
-                    print("########################################\n"
-                        "ERROR. Not all config is loaded. Check cfg log")
-
-def write_logs(cfg):
+def write_logs(cfg, commands):
     start_time = datetime.now()
     current_date = start_time.strftime("%Y.%m.%d")
     current_time = start_time.strftime("%H.%M")
@@ -270,6 +263,21 @@ def write_logs(cfg):
     if not cfg:
         config.unlink()         
 
+
+def check_commit(configuration_log, commands, cfg):
+    if cfg:
+        for i in configuration_log:
+            if "%" in i:
+                print("########################################\n"
+                    "ERROR. CFG-COMMIT")
+
+        for j in commands:
+            if "!" not in j and "" != j and "no shutdown" not in j:
+                if j not in "".join(configuration_log):
+                    print("########################################\n"
+                        "ERROR. Not all config is loaded. Check cfg log")
+
+
 #######################################################################################
 # ------------------------------              ----------------------------------------#
 #######################################################################################
@@ -278,9 +286,7 @@ print("\n-----------------------------------------------------------------------
 
 cfg = get_arguments(argv)
 username, password = get_user_pw()
-region, device = get_info()
-set_region(conf_dic, region, helper)
-set_ios(conf_dic, device)
+device = input("Enter device (ip or hostname): ")
 
 try:
     ssh_conn, show_inf_desc = connect(username, password, conf_dic, device)
@@ -290,13 +296,16 @@ except:
           "connection error\n"
           "########################################")
     
-if ssh_conn: 
+if ssh_conn:
+    region, hostname = define_hostname(ssh_conn, device)
+    set_ios(conf_dic, hostname)
+    set_region(conf_dic, region, helper)
     define_port_vlan(show_inf_desc, conf_dic)
     load_excel(conf_dic)
     commands = read_template(conf_dic)
     configure(ssh_conn, commands, configuration_log, cfg)
     ssh_conn.disconnect()
-    write_logs(cfg)
+    write_logs(cfg, commands)
     check_commit(configuration_log, commands, cfg)
 
     print("########################################\n"
