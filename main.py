@@ -37,6 +37,7 @@ conf_dic = {
     "ip": None,         # [list of bs ip]
     "mask": None,       # mask of bs
     "ios_type": None,   # cisco_ios, cisco_xr, cisco_xe
+    "errors": [],       # errors
     }
 
 configuration_log = []
@@ -65,6 +66,28 @@ def get_user_pw():
     return user_psw[0], user_psw[1]
 
 
+def set_ios(conf_dic, device):
+    while True:
+        if "csg" in device:
+            ios_type = input("Enter ios type (ios,xr,xe) [ios]: ") or "ios"
+        elif "pagg" in device:  
+            ios_type = input("Enter ios type (ios,xr,xe) [xr]: ") or "xr"
+        else:
+            ios_type = input("Enter ios type (ios,xr,xe) [ios]: ") or "ios"
+
+        if ios_type == "ios":
+            conf_dic["ios_type"] = "cisco_ios"
+            break
+        elif ios_type == "xr":
+            conf_dic["ios_type"] = "cisco_xr"
+            break
+        elif ios_type == "xe":
+            conf_dic["ios_type"] = "cisco_xe"
+            break
+        else:
+            print(f"# ERROR # Wrong ios type: {ios_type}. It must be one of ios,xr,xe")
+
+
 def connect(usr, psw, conf_dic, device):
     ssh_conn = ConnectHandler(device_type=conf_dic["ios_type"], ip=device, username=usr, password=psw)
     show_inf_desc = ssh_conn.send_command("show interfaces description")
@@ -89,28 +112,6 @@ def define_hostname(ssh_conn, device):
     return region_final, hostname
 
 
-def set_ios(conf_dic, device):
-    while True:
-        if "csg" in device:
-            ios_type = input("Enter ios type (ios,xr,xe) [ios]: ") or "ios"
-        elif "pagg" in device:  
-            ios_type = input("Enter ios type (ios,xr,xe) [xr]: ") or "xr"
-        else:
-            print(f"# ERROR # hostname error: {device}")
-
-        if ios_type == "ios":
-            conf_dic["ios_type"] = "cisco_ios"
-            break
-        elif ios_type == "xr":
-            conf_dic["ios_type"] = "cisco_xr"
-            break
-        elif ios_type == "xe":
-            conf_dic["ios_type"] = "cisco_xe"
-            break
-        else:
-            print(f"#ERROR# Wrong ios type: {ios_type}. It must be one of ios,xr,xe")
-
-
 def set_region(conf_dic, probable_region, helper):
     while True:
         region = input(f"Enter region for IP RELAY [{probable_region}]: ") or probable_region
@@ -125,9 +126,9 @@ def set_region(conf_dic, probable_region, helper):
 
 
 def define_port_vlan(show_inf_desc, conf_dic):
-    print("########################################\n"
+    print("----------"*7+"\n"
          f"{show_inf_desc}\n"
-          "########################################")
+          "----------"*7)
     
     vl = []     # 101 102 103
     probable_last_vlan = "1010"
@@ -176,12 +177,24 @@ def load_excel(conf_dic):
             last_octet1 = v.split(".")[3]
             v2 = sheet.cell(row=x, column=y+1).value
             v3 = sheet.cell(row=x, column=y+2).value
-            if "." in str(v2) and "." in str(v3):
+            v4 = sheet.cell(row=x, column=y+3).value
+
+            # v - ip csg, v2- ip bs, v3 - mask
+            if "." in str(v2) and "255.255.255." in str(v3):
                 last_octet2 = v2.split(".")[3]
                 if int(last_octet1) + 1 == int(last_octet2):
                     ip = sheet.cell(row=x, column=y).value
                     mask = sheet.cell(row=x, column=y+2).value
                     ip_list.append(ip)
+
+            # v - ip csg, v3- ip bs, v4 - mask
+            elif "." in str(v3) and "255.255.255." in str(v4):
+                last_octet2 = v3.split(".")[3]
+                if int(last_octet1) + 1 == int(last_octet2):
+                    ip = sheet.cell(row=x, column=y).value
+                    mask = sheet.cell(row=x, column=y+2).value
+                    ip_list.append(ip)            
+            
         y += 1
         if y == 60:             # max limit
             y = 1
@@ -189,15 +202,39 @@ def load_excel(conf_dic):
         if len(ip_list) == 6:   # max limit
             break 
         if x == 30:             # max limit
-            print("########################################"
-                 f"# ERROR check IP: {ip_list}")
+            conf_dic["errors"].append(f"BREAK loop, check IP: {ip_list}")
             break
-    if len(ip_list) != 6:
-        print("########################################"
-             f"# ERROR check IP: {ip_list}")
 
     conf_dic["ip"] = ip_list
     conf_dic["mask"] = mask
+
+
+def check_ip(conf_dic):
+    # goes before configuration function
+    
+    if len(conf_dic["ip"]) == 6:
+        if "255.255.255" not in conf_dic["mask"]:
+            conf_dic["errors"].append(f"check mask: {conf_dic['ip']}")
+
+        last_octets = [i.split(".")[3] for i in conf_dic['ip']]
+
+        if len(set(last_octets)) != 1:
+            conf_dic["errors"].append(f"check last octets: {conf_dic['ip']}")
+
+        third_octets = [int(i.split(".")[2]) for i in conf_dic['ip']]
+        third_octets_diff = []        
+        i = 0
+
+        for i in range(5):
+            d = third_octets[i+1] - third_octets[i]
+            i += 1
+            third_octets_diff.append(d)
+        
+        if len(set(third_octets_diff)) != 1:
+            conf_dic["errors"].append(f"check octets diff: {conf_dic['ip']}")
+
+    else:
+        conf_dic["errors"].append(f"check len of IPs: {conf_dic['ip']}")
 
 
 def read_template(conf_dic):
@@ -216,28 +253,34 @@ def read_template(conf_dic):
 
 def configure(ssh_conn, commands, configuration_log, cfg):
     if cfg:
-        if len(commands) > 0:
-            configuration_log.append(ssh_conn.send_config_set(commands))
-            if conf_dic["ios_type"] == "cisco_ios":
-                try:
-                    configuration_log.append(ssh_conn.save_config())
-                except Exception as err_msg:
-                    configuration_log.append(f"COMMIT is OK after msg:{err_msg}")
-                    configuration_log.append(ssh_conn.send_command("\n", expect_string=r"#"))
-            
-            elif conf_dic["ios_type"] == "cisco_xr":
-                configuration_log.append(ssh_conn.send_command("show configuration"))
-                configuration_log.append(ssh_conn.commit())
-                ssh_conn.exit_config_mode()
 
+        if len(conf_dic["errors"]) > 0:
+            print("----------"*7+"\n"
+                  "there are errors. conf is not loaded\n"
+                  "----------"*7)
         else:
-            print("########################################\n"
-                  "cfg is not needed")
+            if len(commands) > 0:
+                configuration_log.append(ssh_conn.send_config_set(commands))
+                if conf_dic["ios_type"] == "cisco_ios":
+                    try:
+                        configuration_log.append(ssh_conn.save_config())
+                    except Exception as err_msg:
+                        configuration_log.append(f"COMMIT is OK after msg:{err_msg}")
+                        configuration_log.append(ssh_conn.send_command("\n", expect_string=r"#"))
+                
+                elif conf_dic["ios_type"] == "cisco_xr":
+                    configuration_log.append(ssh_conn.send_command("show configuration"))
+                    configuration_log.append(ssh_conn.commit())
+                    ssh_conn.exit_config_mode()
+
+            else:
+                print("----------"*7+"\n"
+                    "cfg is not needed")
     else:
         if len(commands) > 0:
-            print("########################################\n"
+            print("----------"*7+"\n"
                   "candidate configuration:\n"
-                  "########################################")
+                  "----------"*7)
             for line in commands:
                 print(line)
 
@@ -265,49 +308,61 @@ def write_logs(cfg, commands):
 
 
 def check_commit(configuration_log, commands, cfg):
-    if cfg:
+    if cfg and len(conf_dic["errors"]) == 0:
         for i in configuration_log:
             if "%" in i:
-                print("########################################\n"
-                    "ERROR. CFG-COMMIT")
+                print("----------"*7+"\n"
+                    "# ERROR # CFG-COMMIT")
 
         for j in commands:
             if "!" not in j and "" != j and "no shutdown" not in j:
                 if j not in "".join(configuration_log):
-                    print("########################################\n"
-                        "ERROR. Not all config is loaded. Check cfg log")
+                    print("----------"*7+"\n"
+                        "# ERROR # Not all config is loaded. Check cfg log")
 
 
 #######################################################################################
 # ------------------------------              ----------------------------------------#
 #######################################################################################
 
-print("\n---------------------------------------------------------------------------")
+print("----------"*7)
 
 cfg = get_arguments(argv)
 username, password = get_user_pw()
 device = input("Enter device (ip or hostname): ")
+set_ios(conf_dic, device)
 
 try:
     ssh_conn, show_inf_desc = connect(username, password, conf_dic, device)
 except:
     ssh_conn = False
-    print("########################################\n"
-          "connection error\n"
-          "########################################")
+    print("----------"*7+"\n"
+          "# ERROR # connection error\n"
+          "----------"*7)
     
 if ssh_conn:
     region, hostname = define_hostname(ssh_conn, device)
-    set_ios(conf_dic, hostname)
     set_region(conf_dic, region, helper)
     define_port_vlan(show_inf_desc, conf_dic)
     load_excel(conf_dic)
+    check_ip(conf_dic)
     commands = read_template(conf_dic)
     configure(ssh_conn, commands, configuration_log, cfg)
     ssh_conn.disconnect()
     write_logs(cfg, commands)
     check_commit(configuration_log, commands, cfg)
 
-    print("########################################\n"
-          "success\n"
-          "########################################")
+    if len(conf_dic["errors"]) > 0:
+        print("----------"*7+"\n"
+              "ERROR\n"
+              "----------"*7)
+        for e in conf_dic["errors"]:
+            print(e)
+
+        print("----------"*7+"\n")
+
+    else:
+        print("----------"*7+"\n"
+              "success\n"
+              "----------"*7)
+
