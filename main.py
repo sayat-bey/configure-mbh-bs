@@ -53,8 +53,7 @@ def get_arguments(arguments):
     for arg in arguments:
         if arg == "cfg" or arg == "CFG" or arg == "conf":
             cfg = True
-    print("\n"
-         f"config mode:...................{cfg}\n")
+    print(f"config mode:...................{cfg}")
   
     return cfg
 
@@ -126,10 +125,8 @@ def set_region(conf_dic, probable_region, helper):
 
 
 def define_port_vlan(show_inf_desc, conf_dic):
-    print("----------"*7+"\n"
-         f"{show_inf_desc}\n"
-          "----------"*7)
-    
+    print(f"{show_inf_desc}")
+    print("----------------------------------------------------------------------")
     vl = []     # 101 102 103
     probable_last_vlan = "1010"
 
@@ -202,7 +199,9 @@ def load_excel(conf_dic):
         if len(ip_list) == 6:   # max limit
             break 
         if x == 30:             # max limit
-            conf_dic["errors"].append(f"BREAK loop, check IP: {ip_list}")
+            print("----------------------------------------------------------------------")
+            print("BREAK loop, check IP")
+            print("----------------------------------------------------------------------")
             break
 
     conf_dic["ip"] = ip_list
@@ -211,7 +210,7 @@ def load_excel(conf_dic):
 
 def check_ip(conf_dic):
     # goes before configuration function
-    
+
     if len(conf_dic["ip"]) == 6:
         if "255.255.255" not in conf_dic["mask"]:
             conf_dic["errors"].append(f"check mask: {conf_dic['ip']}")
@@ -249,15 +248,35 @@ def read_template(conf_dic):
     template_output = template.render(config = conf_dic)
 
     return template_output.splitlines()
- 
+
+
+def check_ip_duplication(usr, psw, conf_dic):
+    # goes before configuration
+    # check ip route in alma-agg-2
+    ip = conf_dic['ip'][0]
+    iplist = ip.split(".")
+
+    net = ".".join([iplist[0], iplist[1], iplist[2], str(int(iplist[3])-1)])
+    sh_ip = None
+
+    try:
+        connection = ConnectHandler(device_type="cisco_xr", ip="10.238.0.17", username=usr, password=psw)
+        sh_ip = connection.send_command(f"show route vrf ALTEL_EPC_MA {net} {conf_dic['mask']}")
+        connection.disconnect()
+    except:
+        conf_dic["errors"].append("alma-agg-2 connection error")
+
+    if net in sh_ip:
+        conf_dic["errors"].append(f"ip route duplication: {net}")
+
 
 def configure(ssh_conn, commands, configuration_log, cfg):
     if cfg:
 
         if len(conf_dic["errors"]) > 0:
-            print("----------"*7+"\n"
+            print("----------------------------------------------------------------------\n"
                   "there are errors. conf is not loaded\n"
-                  "----------"*7)
+                  "----------------------------------------------------------------------")
         else:
             if len(commands) > 0:
                 configuration_log.append(ssh_conn.send_config_set(commands))
@@ -274,13 +293,13 @@ def configure(ssh_conn, commands, configuration_log, cfg):
                     ssh_conn.exit_config_mode()
 
             else:
-                print("----------"*7+"\n"
+                print("----------------------------------------------------------------------\n"
                     "cfg is not needed")
     else:
         if len(commands) > 0:
-            print("----------"*7+"\n"
+            print("----------------------------------------------------------------------\n"
                   "candidate configuration:\n"
-                  "----------"*7)
+                  "----------------------------------------------------------------------")
             for line in commands:
                 print(line)
 
@@ -311,13 +330,13 @@ def check_commit(configuration_log, commands, cfg):
     if cfg and len(conf_dic["errors"]) == 0:
         for i in configuration_log:
             if "%" in i:
-                print("----------"*7+"\n"
+                print("----------------------------------------------------------------------\n"
                     "# ERROR # CFG-COMMIT")
 
         for j in commands:
             if "!" not in j and "" != j and "no shutdown" not in j:
                 if j not in "".join(configuration_log):
-                    print("----------"*7+"\n"
+                    print("----------------------------------------------------------------------\n"
                         "# ERROR # Not all config is loaded. Check cfg log")
 
 
@@ -325,9 +344,9 @@ def check_commit(configuration_log, commands, cfg):
 # ------------------------------              ----------------------------------------#
 #######################################################################################
 
-print("----------"*7)
-
+print("----------------------------------------------------------------------")
 cfg = get_arguments(argv)
+print("----------------------------------------------------------------------")
 username, password = get_user_pw()
 device = input("Enter device (ip or hostname): ")
 set_ios(conf_dic, device)
@@ -336,33 +355,34 @@ try:
     ssh_conn, show_inf_desc = connect(username, password, conf_dic, device)
 except:
     ssh_conn = False
-    print("----------"*7+"\n"
+    print("----------------------------------------------------------------------\n"
           "# ERROR # connection error\n"
-          "----------"*7)
+          "----------------------------------------------------------------------")
     
 if ssh_conn:
     region, hostname = define_hostname(ssh_conn, device)
     set_region(conf_dic, region, helper)
+    print("----------------------------------------------------------------------")
     define_port_vlan(show_inf_desc, conf_dic)
     load_excel(conf_dic)
     check_ip(conf_dic)
     commands = read_template(conf_dic)
+    check_ip_duplication(username, password, conf_dic)
     configure(ssh_conn, commands, configuration_log, cfg)
     ssh_conn.disconnect()
     write_logs(cfg, commands)
     check_commit(configuration_log, commands, cfg)
 
     if len(conf_dic["errors"]) > 0:
-        print("----------"*7+"\n"
-              "ERROR\n"
-              "----------"*7)
+        print("----------------------------------------------------------------------\n"
+              "ERRORS:\n")
         for e in conf_dic["errors"]:
             print(e)
 
-        print("----------"*7+"\n")
+        print("----------------------------------------------------------------------\n")
 
     else:
-        print("----------"*7+"\n"
+        print("----------------------------------------------------------------------\n"
               "success\n"
-              "----------"*7)
+              "----------------------------------------------------------------------")
 

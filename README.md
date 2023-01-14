@@ -15,3 +15,4 @@ v2 (11.01.2023)
 v3 (14.01.2023)
  - check before commit
  - define hostname by ip
+ - check ip duplication
