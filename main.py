@@ -260,9 +260,10 @@ def check_ip_duplication(usr, psw, conf_dic):
     sh_ip = ""
 
     try:
-        connection = ConnectHandler(device_type="cisco_xr", ip="10.238.0.17", username=usr, password=psw)
-        sh_ip = connection.send_command(f"show route vrf ALTEL_EPC_MA {net} {conf_dic['mask']}, read_timeout=20")
+        connection = ConnectHandler(device_type="cisco_xr", ip="10.238.4.17", username=usr, password=psw)
+        sh_ip = connection.send_command(f"show route vrf ALTEL_EPC_MA {net} {conf_dic['mask']}", read_timeout=30)
         connection.disconnect()
+        
     except:
         conf_dic["errors"].append("alma-agg-2 connection error")
 
@@ -373,16 +374,16 @@ if ssh_conn:
     write_logs(cfg, commands)
     check_commit(configuration_log, commands, cfg)
 
-    if len(conf_dic["errors"]) > 0:
-        print("----------------------------------------------------------------------\n"
-              "ERRORS:\n")
-        for e in conf_dic["errors"]:
-            print(e)
+if len(conf_dic["errors"]) > 0:
+    print("----------------------------------------------------------------------\n"
+          "ERRORS:\n")
+    for e in conf_dic["errors"]:
+        print(e)
 
-        print("----------------------------------------------------------------------\n")
+    print("----------------------------------------------------------------------\n")
 
-    else:
-        print("----------------------------------------------------------------------\n"
-              "success\n"
-              "----------------------------------------------------------------------")
+else:
+    print("----------------------------------------------------------------------\n"
+          "success\n"
+          "----------------------------------------------------------------------")
 
