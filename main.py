@@ -89,7 +89,7 @@ def set_ios(conf_dic, device):
 
 def connect(usr, psw, conf_dic, device):
     ssh_conn = ConnectHandler(device_type=conf_dic["ios_type"], ip=device, username=usr, password=psw)
-    show_inf_desc = ssh_conn.send_command("show interfaces description")
+    show_inf_desc = ssh_conn.send_command("show interfaces description", read_timeout=20)
 
     return ssh_conn, show_inf_desc
 
@@ -257,11 +257,11 @@ def check_ip_duplication(usr, psw, conf_dic):
     iplist = ip.split(".")
 
     net = ".".join([iplist[0], iplist[1], iplist[2], str(int(iplist[3])-1)])
-    sh_ip = None
+    sh_ip = ""
 
     try:
         connection = ConnectHandler(device_type="cisco_xr", ip="10.238.0.17", username=usr, password=psw)
-        sh_ip = connection.send_command(f"show route vrf ALTEL_EPC_MA {net} {conf_dic['mask']}")
+        sh_ip = connection.send_command(f"show route vrf ALTEL_EPC_MA {net} {conf_dic['mask']}, read_timeout=20")
         connection.disconnect()
     except:
         conf_dic["errors"].append("alma-agg-2 connection error")
@@ -288,7 +288,7 @@ def configure(ssh_conn, commands, configuration_log, cfg):
                         configuration_log.append(ssh_conn.send_command("\n", expect_string=r"#"))
                 
                 elif conf_dic["ios_type"] == "cisco_xr":
-                    configuration_log.append(ssh_conn.send_command("show configuration"))
+                    configuration_log.append(ssh_conn.send_command("show configuration", read_timeout=20))
                     configuration_log.append(ssh_conn.commit())
                     ssh_conn.exit_config_mode()
 
